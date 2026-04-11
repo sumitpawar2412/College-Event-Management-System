@@ -3,23 +3,58 @@
 {% block content %}
 <div class="container py-5">
     <div class="row justify-content-center">
-        <div class="col-md-6 col-lg-5">
-            <div class="card shadow border-0 rounded-4">
-                <div class="card-body p-5">
-                    <div class="text-center mb-4">
-                        <div class="bg-primary bg-opacity-10 rounded-circle d-inline-flex p-3 mb-3">
-                            <i class="fa-solid fa-user-circle fa-4x text-primary"></i>
+        <div class="col-md-7 col-lg-5">
+            <div class="card p-4 p-md-5">
+                <!-- Role Selection -->
+                <div id="role-selection" class="text-center fade-in">
+                    <div class="mb-4">
+                        <h2 class="fw-bold mb-2">Welcome to SRMAP</h2>
+                        <p class="text-muted">Please select your login portal</p>
+                    </div>
+                    
+                    <div class="row g-4 mt-2">
+                        <div class="col-6">
+                            <div class="card role-card p-4 shadow-sm border h-100" onclick="showLoginForm('student')">
+                                <div class="mb-3">
+                                    <div class="bg-primary bg-opacity-10 rounded-circle d-inline-flex p-3">
+                                        <i class="fa-solid fa-user-graduate fa-2x text-primary"></i>
+                                    </div>
+                                </div>
+                                <h5 class="fw-bold mb-0">Student</h5>
+                            </div>
                         </div>
-                        <h3 class="fw-bold">Welcome Back</h3>
-                        <p class="text-muted">Login to SRMAP Events</p>
+                        <div class="col-6">
+                            <div class="card role-card p-4 shadow-sm border h-100" onclick="showLoginForm('admin')">
+                                <div class="mb-3">
+                                    <div class="bg-primary bg-opacity-10 rounded-circle d-inline-flex p-3">
+                                        <i class="fa-solid fa-shield-halved fa-2x text-primary"></i>
+                                    </div>
+                                </div>
+                                <h5 class="fw-bold mb-0">Admin</h5>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Login Form -->
+                <div id="login-form-container" class="d-none fade-in">
+                    <button class="btn btn-sm btn-link text-decoration-none text-muted mb-4 px-0" onclick="showRoleSelection()">
+                        <i class="fa-solid fa-arrow-left me-1"></i> Back to roles
+                    </button>
+                    
+                    <div class="text-center mb-4">
+                        <div id="login-icon-container" class="bg-primary bg-opacity-10 rounded-circle d-inline-flex p-3 mb-3">
+                            <i id="login-icon" class="fa-solid fa-user-circle fa-3x text-primary"></i>
+                        </div>
+                        <h3 id="login-title" class="fw-bold">Login</h3>
                     </div>
                     
                     <form action="{{ url_for('login') }}" method="POST" class="needs-validation" novalidate>
                         <div class="mb-3">
-                            <label class="form-label fw-bold small text-uppercase text-muted">Email or Username</label>
+                            <label id="identity-label" class="form-label fw-bold small text-uppercase text-muted">Email details</label>
                             <div class="input-group">
-                                <span class="input-group-text bg-light"><i class="fa-solid fa-envelope text-primary"></i></span>
-                                <input type="text" name="email" class="form-control" required placeholder="student@srmap.edu.in or admin">
+                                <span class="input-group-text"><i class="fa-solid fa-envelope text-primary"></i></span>
+                                <input type="text" name="email" id="identity-input" class="form-control" required placeholder="...">
                                 <div class="invalid-feedback">Please enter valid credentials.</div>
                             </div>
                         </div>
@@ -27,21 +62,47 @@
                         <div class="mb-4">
                             <label class="form-label fw-bold small text-uppercase text-muted">Password</label>
                             <div class="input-group">
-                                <span class="input-group-text bg-light"><i class="fa-solid fa-lock text-primary"></i></span>
+                                <span class="input-group-text"><i class="fa-solid fa-lock text-primary"></i></span>
                                 <input type="password" name="password" class="form-control" required placeholder="••••••••">
                                 <div class="invalid-feedback">Please enter your password.</div>
                             </div>
                         </div>
                         
                         <div class="d-grid mb-3">
-                            <button type="submit" class="btn btn-primary btn-lg rounded-pill shadow-sm">Login</button>
+                            <button type="submit" class="btn btn-primary btn-lg rounded-pill shadow-sm">Secure Login</button>
                         </div>
                     </form>
                     
-                    <div class="text-center mt-4">
-                        <p class="mb-0 text-muted">Don't have an account? <a href="{{ url_for('register') }}" class="text-decoration-none fw-bold">Register Student</a></p>
+                    <div id="register-link" class="text-center mt-4">
+                        <p class="mb-0 text-muted">Don't have an account? <a href="{{ url_for('register') }}" class="text-decoration-none fw-bold text-primary">Register Student</a></p>
                     </div>
                 </div>
+
+                <script>
+                    function showLoginForm(role) {
+                        document.getElementById('role-selection').classList.add('d-none');
+                        document.getElementById('login-form-container').classList.remove('d-none');
+                        
+                        if(role === 'student') {
+                            document.getElementById('login-title').innerText = 'Student Login';
+                            document.getElementById('login-icon').className = 'fa-solid fa-user-graduate fa-3x text-primary';
+                            document.getElementById('identity-label').innerText = 'Student Email';
+                            document.getElementById('identity-input').placeholder = 'student@srmap.edu.in';
+                            document.getElementById('register-link').classList.remove('d-none');
+                        } else {
+                            document.getElementById('login-title').innerText = 'Admin Portal';
+                            document.getElementById('login-icon').className = 'fa-solid fa-shield-halved fa-3x text-primary';
+                            document.getElementById('identity-label').innerText = 'Admin Username';
+                            document.getElementById('identity-input').placeholder = 'admin_user';
+                            document.getElementById('register-link').classList.add('d-none');
+                        }
+                    }
+                    
+                    function showRoleSelection() {
+                        document.getElementById('login-form-container').classList.add('d-none');
+                        document.getElementById('role-selection').classList.remove('d-none');
+                    }
+                </script>
             </div>
         </div>
     </div>
