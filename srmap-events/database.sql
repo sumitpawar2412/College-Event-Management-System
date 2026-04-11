@@ -43,3 +43,10 @@ CREATE TABLE IF NOT EXISTS notifications (
     message TEXT NOT NULL,
     posted_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS login_activity (
+    login_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT,
+    role VARCHAR(20),
+    login_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

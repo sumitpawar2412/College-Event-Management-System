@@ -70,6 +70,8 @@ def login():
             session['admin_id'] = admin['admin_id']
             session['username'] = admin['username']
             session['role'] = 'admin'
+            cursor.execute("INSERT INTO login_activity (user_id, role) VALUES (%s, %s)", (admin['admin_id'], 'admin'))
+            conn.commit()
             flash("Logged in successfully as Admin.", "success")
             conn.close()
             return redirect(url_for('admin_dashboard'))
@@ -81,6 +83,8 @@ def login():
             session['user_id'] = student['student_id']
             session['name'] = student['name']
             session['role'] = 'student'
+            cursor.execute("INSERT INTO login_activity (user_id, role) VALUES (%s, %s)", (student['student_id'], 'student'))
+            conn.commit()
             flash("Logged in successfully.", "success")
             conn.close()
             return redirect(url_for('dashboard'))
