@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow border-0 rounded-4">
+                <div class="card-body p-5">
+                    <div class="text-center mb-4">
+                        <div class="bg-primary bg-opacity-10 rounded-circle d-inline-flex p-3 mb-3">
+                            <i class="fa-solid fa-user-plus fa-4x text-primary"></i>
+                        </div>
+                        <h3 class="fw-bold">Student Registration</h3>
+                        <p class="text-muted">Create an account to register for events</p>
+                    </div>
+                    
+                    <form action="{{ url_for('register') }}" method="POST" class="needs-validation" novalidate onsubmit="return validatePassword()">
+                        <div class="row g-3">
+                            <div class="col-sm-6">
+                                <label class="form-label fw-bold small text-uppercase text-muted">Full Name</label>
+                                <input type="text" name="name" class="form-control" required>
+                                <div class="invalid-feedback">Please enter your name.</div>
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label fw-bold small text-uppercase text-muted">Roll Number</label>
+                                <input type="text" name="roll_no" class="form-control" required placeholder="e.g. AP21110010001">
+                                <div class="invalid-feedback">Please enter your roll number.</div>
+                            </div>
+                            
+                            <div class="col-12">
+                                <label class="form-label fw-bold small text-uppercase text-muted">Email Address</label>
+                                <input type="email" name="email" class="form-control" required placeholder="student@srmap.edu.in">
+                                <div class="invalid-feedback">Please enter a valid email.</div>
+                            </div>
+                            
+                            <div class="col-12">
+                                <label class="form-label fw-bold small text-uppercase text-muted">Department</label>
+                                <select name="department" class="form-select" required>
+                                    <option value="" selected disabled>Choose Department...</option>
+                                    <option value="CSE">Computer Science and Engineering</option>
+                                    <option value="ECE">Electronics and Communication</option>
+                                    <option value="MECH">Mechanical Engineering</option>
+                                    <option value="CIVIL">Civil Engineering</option>
+                                    <option value="BBA">Business Administration</option>
+                                    <option value="OTHER">Other</option>
+                                </select>
+                                <div class="invalid-feedback">Please select a department.</div>
+                            </div>
+                            
+                            <div class="col-sm-6">
+                                <label class="form-label fw-bold small text-uppercase text-muted">Password</label>
+                                <input type="password" name="password" id="password" class="form-control" required minlength="6">
+                                <div class="invalid-feedback">Password must be at least 6 characters.</div>
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label fw-bold small text-uppercase text-muted">Confirm Password</label>
+                                <input type="password" id="confirm_password" class="form-control" required>
+                                <div class="invalid-feedback" id="confirm_password_error">Passwords do not match.</div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid mt-4">
+                            <button type="submit" class="btn btn-primary btn-lg rounded-pill shadow-sm">Register Account</button>
+                        </div>
+                    </form>
+                    
+                    <div class="text-center mt-4">
+                        <p class="mb-0 text-muted">Already have an account? <a href="{{ url_for('login') }}" class="text-decoration-none fw-bold">Login Here</a></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function validatePassword() {
+        var password = document.getElementById("password").value;
+        var confirm_password = document.getElementById("confirm_password").value;
+        if(password != confirm_password) {
+            document.getElementById("confirm_password").classList.add("is-invalid");
+            return false;
+        } else {
+            document.getElementById("confirm_password").classList.remove("is-invalid");
+            return true;
+        }
+    }
+</script>
+{% endblock %}

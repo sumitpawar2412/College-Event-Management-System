@@ -1,0 +1,66 @@
+/* Modern Layout Overrides */
+:root {
+    --primary-color: #0d6efd;
+    --bg-light: #f8f9fa;
+    --bg-dark: #212529;
+}
+
+body {
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Navbar */
+.custom-navbar {
+    background: linear-gradient(135deg, #0d6efd, #084298) !important;
+}
+.nav-btn {
+    border-radius: 50px;
+}
+
+/* Event Cards */
+.event-card {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    border: none;
+    border-radius: 15px;
+    overflow: hidden;
+}
+.event-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+}
+
+.card-header-custom {
+    background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+    border-bottom: none;
+    font-weight: bold;
+}
+[data-bs-theme="dark"] .card-header-custom {
+    background: linear-gradient(135deg, #343a40, #212529);
+    color: white;
+}
+
+/* Hero Section */
+.hero-section {
+    background: url('../images/bg.png') center/cover no-repeat;
+    position: relative;
+    color: white;
+    padding: 100px 0;
+}
+.hero-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+}
+.hero-content {
+    position: relative;
+    z-index: 1;
+}
+
+/* Dark Mode Overrides */
+[data-bs-theme="dark"] body {
+    background-color: var(--bg-dark);
+}
+[data-bs-theme="dark"] .event-card {
+    background-color: #2c3034;
+    color: #f8f9fa;
+}

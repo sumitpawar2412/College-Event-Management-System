@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row mb-4 align-items-center">
+        <div class="col-md-6">
+            <h2 class="fw-bold"><i class="fa-solid fa-calendar-days text-primary me-2"></i>All Events</h2>
+        </div>
+        <div class="col-md-6">
+            <form action="{{ url_for('events') }}" method="GET" class="d-flex shadow-sm rounded-pill overflow-hidden border">
+                <input type="text" name="search" class="form-control border-0 shadow-none px-3" placeholder="Search events..." value="{{ search }}">
+                <button type="submit" class="btn btn-primary px-4 border-0"><i class="fa-solid fa-search"></i></button>
+            </form>
+            {% if search %}
+            <div class="text-end mt-2">
+                <a href="{{ url_for('events') }}" class="text-decoration-none text-muted small"><i class="fa-solid fa-times me-1"></i>Clear Search</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="row g-4">
+        {% for event in events %}
+        <div class="col-md-6 col-lg-4">
+            <div class="card event-card h-100 shadow-sm border-0 bg-opacity-10">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h5 class="card-title fw-bold text-primary mb-0">{{ event.event_name }}</h5>
+                        <span class="badge bg-secondary"><i class="fa-solid fa-users me-1"></i>{{ event.capacity }}</span>
+                    </div>
+                    <hr class="text-muted">
+                    <p class="text-muted small mb-2">
+                        <i class="fa-solid fa-calendar text-primary me-2"></i><strong>Date:</strong> {{ event.event_date }}
+                    </p>
+                    <p class="text-muted small mb-2">
+                        <i class="fa-regular fa-clock text-primary me-2"></i><strong>Time:</strong> {{ event.event_time }}
+                    </p>
+                    <p class="text-muted small mb-2">
+                        <i class="fa-solid fa-location-dot text-danger me-2"></i><strong>Venue:</strong> {{ event.venue }}
+                    </p>
+                    <p class="text-muted small mb-3">
+                        <i class="fa-solid fa-sitemap text-success me-2"></i><strong>Organizer:</strong> {{ event.organizer }}
+                    </p>
+                    <p class="card-text bg-light p-3 rounded" style="font-size: 0.9rem;">
+                        {{ event.description }}
+                    </p>
+                </div>
+                <div class="card-footer bg-transparent border-top-0 pt-0 pb-3">
+                    {% if session.get('role') == 'student' %}
+                        <form action="{{ url_for('register_event', event_id=event.event_id) }}" method="POST">
+                            <button type="submit" class="btn btn-primary w-100 fw-bold rounded-pill shadow-sm"><i class="fa-solid fa-ticket me-2"></i>Register Now</button>
+                        </form>
+                    {% elif session.get('role') == 'admin' %}
+                        <button class="btn btn-secondary w-100 rounded-pill" disabled><i class="fa-solid fa-shield-halved me-2"></i>Admin View</button>
+                    {% else %}
+                        <a href="{{ url_for('login') }}" class="btn btn-outline-primary w-100 rounded-pill"><i class="fa-solid fa-right-to-bracket me-2"></i>Login to Register</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="col-12 text-center py-5">
+            <i class="fa-solid fa-folder-open fa-3x text-muted mb-3"></i>
+            <h4 class="text-muted">No events available right now.</h4>
+            <p class="text-muted">Check back later for new events!</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

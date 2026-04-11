@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="hero-section text-center mb-5">
+    <div class="hero-overlay"></div>
+    <div class="container hero-content py-5">
+        <h1 class="display-3 fw-bold mb-4">Welcome to SRMAP Events</h1>
+        <p class="lead mb-4">Discover, register, and participate in exciting college events happening at SRM University-AP.</p>
+        {% if session.get('role') != 'student' and session.get('role') != 'admin' %}
+            <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg px-4 me-2 shadow">Join Now</a>
+            <a href="{{ url_for('events') }}" class="btn btn-outline-light btn-lg px-4">Browse Events</a>
+        {% else %}
+            <a href="{{ url_for('events') }}" class="btn btn-primary btn-lg px-4 shadow">Browse Events</a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="container mb-5">
+    <h2 class="text-center fw-bold mb-4">Upcoming Events</h2>
+    <div class="row g-4">
+        {% for event in events %}
+        <div class="col-md-4">
+            <div class="card event-card h-100 shadow-sm border-0">
+                <div class="card-header card-header-custom py-3">
+                    <h5 class="card-title mb-0 text-primary"><i class="fa-solid fa-star me-2"></i>{{ event.event_name }}</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small mb-2">
+                        <i class="fa-solid fa-calendar me-2 text-secondary"></i>{{ event.event_date }} at {{ event.event_time }}
+                    </p>
+                    <p class="text-muted small mb-3">
+                        <i class="fa-solid fa-location-dot me-2 text-danger"></i>{{ event.venue }}
+                    </p>
+                    <p class="card-text">{{ event.description[:100] }}...</p>
+                </div>
+                <div class="card-footer bg-transparent border-top-0 pb-3">
+                    <a href="{{ url_for('events') }}" class="btn btn-outline-primary w-100 rounded-pill">View Details</a>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="col-12 text-center py-5">
+            <i class="fa-regular fa-calendar-xmark fa-4x text-muted mb-3"></i>
+            <h4 class="text-muted">No upcoming events found.</h4>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
