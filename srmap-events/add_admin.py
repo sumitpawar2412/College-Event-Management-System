@@ -1,3 +1,16 @@
+from pathlib import Path
+import os
+import sys
+
+
+def _ensure_workspace_venv():
+    venv_python = Path(__file__).resolve().parents[1] / '.venv' / 'Scripts' / 'python.exe'
+    if venv_python.exists() and Path(sys.executable).resolve() != venv_python.resolve():
+        os.execv(str(venv_python), [str(venv_python), *sys.argv])
+
+
+_ensure_workspace_venv()
+
 import pymysql
 from werkzeug.security import generate_password_hash
 
