@@ -54,51 +54,76 @@ Administrators can:
 
 ### Core DBMS Principles Used
 
-#### 1. **Normalization**
-The database follows **3rd Normal Form (3NF)** principles:
+#### 1. **Normalization (Enhanced in v2)**
+The database follows **3rd Normal Form (3NF)** principles with improved design:
+
+**v2 Improvements:**
+- **Eliminated Attribute Redundancy**: Department and Organizer names moved to separate tables
 - **Atomic Values**: Each column contains only atomic (indivisible) values
 - **No Partial Dependencies**: Non-key attributes depend on the entire primary key
 - **No Transitive Dependencies**: Non-key attributes depend only on the primary key
+- **Example**: Instead of storing "CSE" in every student record, we store `dept_id` referencing the departments table
 
-#### 2. **Entity-Relationship Model (ER)**
-The system is designed using the ER model with clear relationships:
+#### 2. **Entity-Relationship Model (ER) - Enhanced**
+The system is designed using the ER model with clear, normalized relationships:
 - **Students** 1:M **Registrations** M:1 **Events**
-- **Admins** create and manage **Events**
-- **Notifications** inform users about **Events**
+- **Students** M:1 **Departments** (new in v2)
+- **Events** M:1 **Organizers** (new in v2)
+- **Notifications** M:1 **Events** (optional link, new in v2)
+- **Login_Activity** references both Students and Admins (improved in v2)
+
+**v2 Benefit**: Clearer entity definitions, less data redundancy
 
 #### 3. **Primary Keys (PK)**
 - Uniquely identifies each record in a table
 - Auto-increment integers used for efficient indexing
-- Examples: `student_id`, `event_id`, `admin_id`
+- Examples: `student_id`, `event_id`, `dept_id`, `organizer_id`, `admin_id`
+- **v2 Addition**: New PKs for departments and organizers tables
 
-#### 4. **Foreign Keys (FK)**
-- Maintain **referential integrity** between related tables
+#### 4. **Foreign Keys (FK) - Enhanced with Better Constraints**
+Maintain **referential integrity** between related tables:
 - Prevent orphaned records
-- ON DELETE CASCADE ensures data consistency
-- Example: `registrations.student_id` → `students.student_id`
+- Two types of referential actions in v2:
+  - **ON DELETE CASCADE**: Used for "owned" relationships (student registrations, login_activity)
+  - **ON DELETE SET NULL**: Used for optional references (student.dept_id, event.organizer_id, notification.event_id)
+
+**Examples**:
+- `students.dept_id` → `departments.dept_id` (SET NULL if dept deleted)
+- `events.organizer_id` → `organizers.organizer_id` (SET NULL if organizer deleted)
+- `registrations.student_id` → `students.student_id` (CASCADE if student deleted)
+- `login_activity.student_id` → `students.student_id` (CASCADE if student deleted)
 
 #### 5. **Unique Constraints**
-- Prevent duplicate entries for critical fields
-- Examples:
-  - `students.roll_no` - Each student has unique roll number
-  - `students.email` - Each email is unique
-  - `admins.username` - Admin usernames must be unique
-  - `registrations(student_id, event_id)` - Each student can register once per event
+Prevent duplicate entries for critical fields:
+- `students.roll_no` - Each student has unique roll number
+- `students.email` - Each email is unique
+- `admins.username` - Admin usernames must be unique
+- `departments.dept_name` - Department names must be unique (v2 new)
+- `registrations(student_id, event_id)` - Each student registers once per event
 
-#### 6. **TIMESTAMPS**
-- **Automatic timestamps** track when records are created or updated
-- Examples: `registrations.reg_date`, `notifications.posted_date`, `login_activity.login_time`
-- Useful for audit trails and event ordering
+#### 6. **CHECK Constraints (v2 Enhancement)**
+Data validation at the database level:
+- **login_activity CHECK**: `(student_id IS NOT NULL AND admin_id IS NULL) OR (student_id IS NULL AND admin_id IS NOT NULL)`
+  - Ensures login records are either for a student OR admin, never both/neither
+  - Type safety at database level
 
-#### 7. **Data Integrity**
+#### 7. **TIMESTAMPS**
+Automatic timestamps track when records are created or updated:
+- `registrations.reg_date` - When student registered for event
+- `notifications.posted_date` - When notification was posted
+- `login_activity.login_time` - When user logged in
+- **Benefits**: Audit trails, event ordering, security monitoring
+
+#### 8. **Data Integrity**
 - **Type Checking**: VARCHAR for text, INT for numbers, DATE/TIME for temporal data
 - **NOT NULL Constraints**: Essential fields cannot be empty
 - **Default Values**: AUTO_INCREMENT for IDs, CURRENT_TIMESTAMP for dates
-- **ON DELETE CASCADE**: When a student is deleted, all their registrations are automatically deleted
+- **Referential Integrity**: Foreign keys prevent invalid relationships
+- **v2 Improvement**: Better constraint design with CASCADE vs SET NULL options
 
-#### 8. **ACID Properties**
+#### 9. **ACID Properties**
 - **Atomicity**: Transactions (e.g., login recording) are all-or-nothing
-- **Consistency**: Data always maintains valid state
+- **Consistency**: Data always maintains valid state (enforced by constraints)
 - **Isolation**: Multiple transactions don't interfere
 - **Durability**: Committed data persists after COMMIT
 
@@ -227,7 +252,28 @@ Open your browser and go to: **http://localhost:5000**
 
 ## Database Schema
 
-### Table: `students`
+### Table: `departments` (NEW)
+```sql
+CREATE TABLE departments (
+    dept_id INT AUTO_INCREMENT PRIMARY KEY,
+    dept_name VARCHAR(50) UNIQUE NOT NULL
+);
+```
+**Purpose**: Stores department information for better normalization
+**Fields**:
+- `dept_id` - Auto-incremented department ID
+- `dept_name` - Unique department name (CSE, ECE, ME, CE, EEE, etc.)
+
+**Sample Data**:
+- CSE (Computer Science & Engineering)
+- ECE (Electronics & Communication Engineering)
+- ME (Mechanical Engineering)
+- CE (Civil Engineering)
+- EEE (Electrical & Electronics Engineering)
+
+---
+
+### Table: `students` (UPDATED)
 ```sql
 CREATE TABLE students (
     student_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -235,11 +281,17 @@ CREATE TABLE students (
     roll_no VARCHAR(20) UNIQUE NOT NULL,
     email VARCHAR(100) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
-    department VARCHAR(50)
+    dept_id INT,
+    FOREIGN KEY (dept_id) REFERENCES departments(dept_id)
+        ON DELETE SET NULL
 );
 ```
 **Purpose**: Stores student profile information
-**Unique Fields**: `roll_no`, `email` (prevent duplicates)
+**Changes from v1**: 
+- `department` VARCHAR(50) → `dept_id` INT with Foreign Key to `departments` table
+- Better normalization: Department names are centralized and not repeated in every student record
+**Unique Fields**: `roll_no`, `email`
+**Foreign Key**: `dept_id` references `departments.dept_id` with ON DELETE SET NULL (if dept deleted, dept_id becomes NULL)
 
 ---
 
@@ -253,11 +305,31 @@ CREATE TABLE admins (
 ```
 **Purpose**: Stores admin credentials
 **Unique Fields**: `username`
-**Security**: Passwords are hashed using Werkzeug
+**Security**: Passwords are hashed using Werkzeug PBKDF2
 
 ---
 
-### Table: `events`
+### Table: `organizers` (NEW)
+```sql
+CREATE TABLE organizers (
+    organizer_id INT AUTO_INCREMENT PRIMARY KEY,
+    organizer_name VARCHAR(100) NOT NULL
+);
+```
+**Purpose**: Stores event organizer information
+**Fields**:
+- `organizer_id` - Auto-incremented ID
+- `organizer_name` - Name of the club/committee organizing events
+
+**Sample Data**:
+- Tech Club
+- Cultural Club
+- Sports Committee
+- Academic Association
+
+---
+
+### Table: `events` (UPDATED)
 ```sql
 CREATE TABLE events (
     event_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -266,15 +338,21 @@ CREATE TABLE events (
     event_date DATE NOT NULL,
     event_time TIME NOT NULL,
     venue VARCHAR(100),
-    organizer VARCHAR(100),
-    capacity INT DEFAULT 100
+    organizer_id INT,
+    capacity INT DEFAULT 100,
+    FOREIGN KEY (organizer_id) REFERENCES organizers(organizer_id)
+        ON DELETE SET NULL
 );
 ```
 **Purpose**: Stores event information
+**Changes from v1**: 
+- `organizer` VARCHAR(100) → `organizer_id` INT with Foreign Key to `organizers` table
+- Better normalization: Organizer names are stored once, referenced by ID
+**Foreign Key**: `organizer_id` references `organizers.organizer_id` with ON DELETE SET NULL
 **Key Fields**:
 - `event_date` - When the event occurs
-- `capacity` - Maximum number of registrations
-- `organizer` - Person/club organizing the event
+- `event_time` - Time of the event
+- `capacity` - Maximum registrations allowed (default 100)
 
 ---
 
@@ -285,116 +363,185 @@ CREATE TABLE registrations (
     student_id INT NOT NULL,
     event_id INT NOT NULL,
     reg_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE,
-    FOREIGN KEY (event_id) REFERENCES events(event_id) ON DELETE CASCADE,
+    FOREIGN KEY (student_id) REFERENCES students(student_id)
+        ON DELETE CASCADE,
+    FOREIGN KEY (event_id) REFERENCES events(event_id)
+        ON DELETE CASCADE,
     UNIQUE(student_id, event_id)
 );
 ```
-**Purpose**: Links students to events (Junction/Bridge Table)
+**Purpose**: Junction table linking students to events (Many-to-Many relationship)
 **Important Features**:
-- **UNIQUE Constraint**: `(student_id, event_id)` - Each student can register only once per event
-- **Foreign Keys**: Maintain referential integrity
+- **UNIQUE Constraint**: `(student_id, event_id)` - Each student registers only once per event
+- **Referential Integrity**: Foreign keys ensure valid student and event IDs
 - **ON DELETE CASCADE**: Auto-delete registrations if student/event is deleted
-- **Automatic Timestamp**: Records registration date/time
+- **Automatic Timestamp**: Records exact registration date/time
 
 ---
 
-### Table: `notifications`
+### Table: `notifications` (UPDATED)
 ```sql
 CREATE TABLE notifications (
     notice_id INT AUTO_INCREMENT PRIMARY KEY,
     title VARCHAR(150) NOT NULL,
     message TEXT NOT NULL,
-    posted_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    event_id INT NULL,
+    posted_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (event_id) REFERENCES events(event_id)
+        ON DELETE SET NULL
 );
 ```
-**Purpose**: Stores announcements and notifications for users
+**Purpose**: Stores system announcements and event-specific notifications
+**Changes from v1**: 
+- Added `event_id` INT NULL field
+- Added Foreign Key to link notifications to specific events
+- Allows event-specific notifications (event cancellations, updates, etc.)
 **Key Fields**:
 - `title` - Notification headline
 - `message` - Full notification text
+- `event_id` - Optional link to an event (NULL for general announcements)
 - `posted_date` - When notification was posted
 
 ---
 
-### Table: `login_activity`
+### Table: `login_activity` (UPDATED)
 ```sql
 CREATE TABLE login_activity (
     login_id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT,
-    role VARCHAR(20),
-    login_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    student_id INT NULL,
+    admin_id INT NULL,
+    login_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CHECK (
+        (student_id IS NOT NULL AND admin_id IS NULL) OR
+        (student_id IS NULL AND admin_id IS NOT NULL)
+    ),
+    FOREIGN KEY (student_id) REFERENCES students(student_id)
+        ON DELETE CASCADE,
+    FOREIGN KEY (admin_id) REFERENCES admins(admin_id)
+        ON DELETE CASCADE
 );
 ```
-**Purpose**: Audit trail for user logins
-**Useful For**:
-- Security monitoring
-- User behavior analysis
-- Tracking active admins vs students
-- Identifying suspicious activity
+**Purpose**: Audit trail for tracking user logins
+**Changes from v1**: 
+- `user_id` INT + `role` VARCHAR → Separate `student_id` and `admin_id` columns
+- Added CHECK constraint to ensure data integrity
+- Added Foreign Keys for both student and admin logins
+**Important Features**:
+- **CHECK Constraint**: Ensures exactly ONE of `student_id` or `admin_id` is NOT NULL
+  - Either a student logged in (student_id has value, admin_id is NULL)
+  - Or an admin logged in (admin_id has value, student_id is NULL)
+  - Never both, never neither
+- **Foreign Keys**: Maintain referential integrity
+- **ON DELETE CASCADE**: Remove login records if user account is deleted
+- **Automatic Timestamp**: Records exact login time
+
+---
+
+## Database Normalization Improvements
+
+### Version 1 → Version 2 Changes
+
+| Aspect | v1 | v2 | Benefit |
+|--------|----|----|---------|
+| **Departments** | VARCHAR field in students | Separate `departments` table | Eliminates data redundancy, easier updates |
+| **Organizers** | VARCHAR field in events | Separate `organizers` table | Eliminates data redundancy, consistent naming |
+| **Student-Dept Link** | Direct string storage | Foreign Key relationship | Data integrity, enforces valid departments |
+| **Event-Organizer Link** | Direct string storage | Foreign Key relationship | Data integrity, enforces valid organizers |
+| **Login Tracking** | Single `user_id` + `role` | Separate `student_id`/`admin_id` | Type safety, CHECK constraint, clearer intent |
+| **Notifications** | Generic announcements only | Can link to events | Better context, event-specific alerts |
+
+### 3NF Compliance
+
+The new schema strictly follows **Third Normal Form (3NF)**:
+
+1. **First Normal Form (1NF)**: All values are atomic (no repeating groups)
+2. **Second Normal Form (2NF)**: No partial dependencies on composite keys
+3. **Third Normal Form (3NF)**: No transitive dependencies
+   - Student depends only on student_id
+   - Department info depends on dept_id (not embedded in students)
+   - Event organizer depends on organizer_id (not embedded in events)
 
 ---
 
 ## Relationship Diagram
 
 ```
-┌──────────────┐
-│   students   │
-├──────────────┤
-│ student_id◄──┼────┐
-│ name         │    │
-│ roll_no      │    │  Foreign Key
-│ email        │    │
-│ password     │    │
-│ department   │    │
-└──────────────┘    │
-                    │
-              ┌─────▼──────────┐
-              │ registrations  │
-              ├────────────────┤
-              │ reg_id         │
-              │ student_id ────┼──────► students
-              │ event_id ──────┼──────► events
-              │ reg_date       │
-              └────────────────┘
-
-┌──────────────┐
-│    events    │
-├──────────────┤
-│ event_id  ◄──┼────────────────────┐
-│ event_name   │                    │
-│ description  │              Foreign Key
-│ event_date   │                    │
-│ event_time   │    ┌───────────────┘
-│ venue        │    │
-│ organizer    │    │
-│ capacity     │    │
-└──────────────┘    │
-
-┌──────────────┐
-│    admins    │
-├──────────────┤
-│ admin_id     │
-│ username     │◄── Creates and manages events
-│ password     │
+┌──────────────────┐
+│  departments     │
+├──────────────────┤
+│ dept_id ◄────────┼────┐
+│ dept_name        │    │
+└──────────────────┘    │ Foreign Key
+                        │
+┌──────────────┐        │
+│   students   │        │
+├──────────────┤        │
+│ student_id   │◄───┐   │
+│ name         │    │   │
+│ roll_no      │    │   │
+│ email        │    │   │
+│ password     │    │   │
+│ dept_id ─────┼────┘───┘
 └──────────────┘
 
-┌────────────────────┐
-│  notifications     │
-├────────────────────┤
-│ notice_id          │
-│ title              │
-│ message            │
-│ posted_date        │
-└────────────────────┘
+                        ┌─────────────────┐
+                        │  organizers     │
+                        ├─────────────────┤
+                        │ organizer_id ◄──┼────┐
+                        │ organizer_name  │    │
+                        └─────────────────┘    │
+                                               │ Foreign Key
+┌──────────────┐                               │
+│    events    │                               │
+├──────────────┤                               │
+│ event_id  ◄──┼────────┐                      │
+│ event_name   │        │                      │
+│ description  │        │                      │
+│ event_date   │        │                      │
+│ event_time   │        │  Foreign Key         │
+│ venue        │        │                      │
+│ organizer_id ─────────┴──────────────────────┘
+│ capacity     │        
+└──────────────┘        
+       ▲                 
+       │ Foreign Key    
+       │                 
+  ┌────┴──────────────┐
+  │ registrations     │
+  ├───────────────────┤
+  │ reg_id            │
+  │ student_id ───────┼──────► students
+  │ event_id ─────────┼──────► events
+  │ reg_date          │
+  └───────────────────┘
+
+┌────────────────────────┐
+│   notifications        │
+├────────────────────────┤
+│ notice_id              │
+│ title                  │
+│ message                │
+│ event_id ──────────────┼──────► events (optional)
+│ posted_date            │
+└────────────────────────┘
 
 ┌────────────────────┐
-│ login_activity     │
+│   admins           │
 ├────────────────────┤
-│ login_id           │
-│ user_id            │◄── References both students and admins
-│ role               │
-│ login_time         │
-└────────────────────┘
+│ admin_id  ◄────────┼────┐
+│ username           │    │ Foreign Key
+│ password           │    │
+└────────────────────┘    │
+
+┌────────────────────────────┐
+│ login_activity             │
+├────────────────────────────┤
+│ login_id                   │
+│ student_id ────────────────┼──────► students (NULL if admin)
+│ admin_id ──────────────────┼──────► admins (NULL if student)
+│ login_time                 │
+│ CHECK: Only one is NOT NULL│
+└────────────────────────────┘
 ```
 
 ---
@@ -580,27 +727,55 @@ cryptography          # Encryption utilities
 - ✅ **Isolation**: Transaction-based operations
 - ✅ **Durability**: MySQL persistence
 
-### 2. **Normalization (3NF)**
-- ✅ **1NF**: Atomic values only
-- ✅ **2NF**: No partial dependencies (no non-key dependency on part of composite key)
+### 2. **Normalization (3NF) - v2 Enhanced**
+- ✅ **1NF**: Atomic values only (no repeating groups)
+- ✅ **2NF**: No partial dependencies on composite keys
 - ✅ **3NF**: No transitive dependencies
+  - v2: Department info is in separate table, not embedded in students
+  - v2: Organizer info is in separate table, not embedded in events
 
-### 3. **Relationships**
-- ✅ **One-to-Many (1:M)**: Student → Registrations
-- ✅ **Many-to-Many (M:M)**: Students ↔ Events (via Registrations)
-- ✅ **One-to-One (1:1)**: Student → Department implicitly
+### 3. **Relationships (Improved in v2)**
+- ✅ **One-to-Many (1:M)**: 
+  - Student → Registrations
+  - Department → Students
+  - Organizer → Events
+- ✅ **Many-to-Many (M:M)**: Students ↔ Events (via Registrations table)
+- ✅ **Optional One-to-Many**: Events ← Notifications
 
-### 4. **Constraints**
-- ✅ **PRIMARY KEY**: Unique row identification
+### 4. **Constraints (Enhanced in v2)**
+- ✅ **PRIMARY KEY**: Unique row identification for all tables
 - ✅ **FOREIGN KEY**: Referential integrity
-- ✅ **UNIQUE**: Prevent duplicates
+  - v2: Uses CASCADE for "owned" relationships
+  - v2: Uses SET NULL for optional relationships
+- ✅ **UNIQUE**: Prevent duplicates (roll_no, email, username, dept_name)
+- ✅ **CHECK** (v2 new): login_activity can only have student_id OR admin_id, not both
 - ✅ **NOT NULL**: Required fields
-- ✅ **DEFAULT**: Automatic values
+- ✅ **DEFAULT**: Automatic values (CURRENT_TIMESTAMP, 100)
 
-### 5. **Indexing** (Implicit)
-- PRIMARY KEYs are automatically indexed
-- Fast lookups by student_id, event_id, admin_id
-- Email and roll_no UNIQUE indexes for fast login
+### 5. **Indexing** (Implicit & Efficient)
+- PRIMARY KEYs are automatically indexed for fast lookups
+- Fast queries by student_id, event_id, admin_id, dept_id, organizer_id
+- UNIQUE constraint fields automatically indexed
+- Email and roll_no UNIQUE indexes enable fast login lookups
+
+### 6. **Data Redundancy Elimination (v2 Focus)**
+- **Before**: Department name stored in every student record
+- **After**: Stored once in departments table, referenced by ID
+- **Before**: Organizer name stored in every event record
+- **After**: Stored once in organizers table, referenced by ID
+- **Result**: Better normalization, easier updates, less storage
+
+### 7. **Referential Integrity Strategy (v2 Improved)**
+- **Owned Relationships** (ON DELETE CASCADE):
+  - Registrations owned by Students/Events
+  - Login_activity owned by Student/Admin
+  - If parent deleted, child records automatically deleted
+  
+- **Optional Relationships** (ON DELETE SET NULL):
+  - Student may not have Department
+  - Event may not have Organizer
+  - Notification may not link to Event
+  - If parent deleted, foreign key becomes NULL (data preserved)
 
 ---
 

@@ -46,7 +46,12 @@ def index():
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM events ORDER BY event_date ASC LIMIT 3")
+        cursor.execute("""
+            SELECT e.*, o.organizer_name 
+            FROM events e 
+            LEFT JOIN organizers o ON e.organizer_id = o.organizer_id 
+            ORDER BY e.event_date ASC LIMIT 3
+        """)
         upcoming_events = cursor.fetchall()
         conn.close()
         return render_template('index.html', events=upcoming_events)
@@ -70,7 +75,7 @@ def login():
             session['admin_id'] = admin['admin_id']
             session['username'] = admin['username']
             session['role'] = 'admin'
-            cursor.execute("INSERT INTO login_activity (user_id, role) VALUES (%s, %s)", (admin['admin_id'], 'admin'))
+            cursor.execute("INSERT INTO login_activity (admin_id) VALUES (%s)", (admin['admin_id'],))
             conn.commit()
             flash("Logged in successfully as Admin.", "success")
             conn.close()
@@ -83,7 +88,7 @@ def login():
             session['user_id'] = student['student_id']
             session['name'] = student['name']
             session['role'] = 'student'
-            cursor.execute("INSERT INTO login_activity (user_id, role) VALUES (%s, %s)", (student['student_id'], 'student'))
+            cursor.execute("INSERT INTO login_activity (student_id) VALUES (%s)", (student['student_id'],))
             conn.commit()
             flash("Logged in successfully.", "success")
             conn.close()
@@ -100,7 +105,7 @@ def register():
         roll_no = request.form['roll_no']
         email = request.form['email']
         password = request.form['password']
-        department = request.form['department']
+        dept_id = request.form.get('dept_id')
         
         hashed_pw = generate_password_hash(password)
         
@@ -117,9 +122,9 @@ def register():
             
         try:
             cursor.execute("""
-                INSERT INTO students (name, roll_no, email, password, department) 
+                INSERT INTO students (name, roll_no, email, password, dept_id) 
                 VALUES (%s, %s, %s, %s, %s)
-            """, (name, roll_no, email, hashed_pw, department))
+            """, (name, roll_no, email, hashed_pw, dept_id if dept_id else None))
             conn.commit()
             flash("Registration successful! Please login.", "success")
             return redirect(url_for('login'))
@@ -127,8 +132,19 @@ def register():
             flash(f"Error registering user: {e}", "danger")
         finally:
             conn.close()
+    
+    # Get departments for dropdown
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM departments ORDER BY dept_name ASC")
+        departments = cursor.fetchall()
+        conn.close()
+    except Exception as e:
+        print(f"Error fetching departments: {e}")
+        departments = []
             
-    return render_template('register.html')
+    return render_template('register.html', departments=departments)
 
 @app.route('/logout')
 def logout():
@@ -142,9 +158,20 @@ def events():
     conn = get_db_connection()
     cursor = conn.cursor()
     if search:
-        cursor.execute("SELECT * FROM events WHERE event_name LIKE %s OR description LIKE %s", (f'%{search}%', f'%{search}%'))
+        cursor.execute("""
+            SELECT e.*, o.organizer_name 
+            FROM events e 
+            LEFT JOIN organizers o ON e.organizer_id = o.organizer_id 
+            WHERE e.event_name LIKE %s OR e.description LIKE %s 
+            ORDER BY e.event_date ASC
+        """, (f'%{search}%', f'%{search}%'))
     else:
-        cursor.execute("SELECT * FROM events ORDER BY event_date ASC")
+        cursor.execute("""
+            SELECT e.*, o.organizer_name 
+            FROM events e 
+            LEFT JOIN organizers o ON e.organizer_id = o.organizer_id 
+            ORDER BY e.event_date ASC
+        """)
     all_events = cursor.fetchall()
     conn.close()
     return render_template('events.html', events=all_events, search=search)
@@ -201,14 +228,20 @@ def dashboard():
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Get user profile
-    cursor.execute("SELECT * FROM students WHERE student_id=%s", (user_id,))
+    # Get user profile with department info
+    cursor.execute("""
+        SELECT s.*, d.dept_name 
+        FROM students s 
+        LEFT JOIN departments d ON s.dept_id = d.dept_id 
+        WHERE s.student_id=%s
+    """, (user_id,))
     student = cursor.fetchone()
     
     # Get registered events
     cursor.execute("""
-        SELECT e.*, r.reg_date 
+        SELECT e.*, r.reg_date, o.organizer_name 
         FROM events e 
+        LEFT JOIN organizers o ON e.organizer_id = o.organizer_id
         JOIN registrations r ON e.event_id = r.event_id 
         WHERE r.student_id = %s
         ORDER BY e.event_date ASC
@@ -231,7 +264,12 @@ def admin_dashboard():
     cursor.execute("SELECT COUNT(*) as ecount FROM events")
     events_count = cursor.fetchone()['ecount']
     
-    cursor.execute("SELECT * FROM events ORDER BY event_date ASC")
+    cursor.execute("""
+        SELECT e.*, o.organizer_name 
+        FROM events e 
+        LEFT JOIN organizers o ON e.organizer_id = o.organizer_id 
+        ORDER BY e.event_date ASC
+    """)
     all_events = cursor.fetchall()
     
     # Enhance events with registration counts
@@ -255,16 +293,16 @@ def add_event():
     date = request.form['event_date']
     time = request.form['event_time']
     venue = request.form['venue']
-    organizer = request.form['organizer']
+    organizer_id = request.form.get('organizer_id')
     capacity = int(request.form['capacity'])
     
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO events (event_name, description, event_date, event_time, venue, organizer, capacity) 
+            INSERT INTO events (event_name, description, event_date, event_time, venue, organizer_id, capacity) 
             VALUES (%s, %s, %s, %s, %s, %s, %s)
-        """, (name, desc, date, time, venue, organizer, capacity))
+        """, (name, desc, date, time, venue, organizer_id if organizer_id else None, capacity))
         conn.commit()
         flash("Event added successfully.", "success")
     except Exception as e:
