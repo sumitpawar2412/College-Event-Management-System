@@ -1,9 +1,12 @@
+from pathlib import Path
+import os
+
 import pymysql
 from werkzeug.security import generate_password_hash
 
-DB_HOST = 'localhost'
-DB_USER = 'root'
-DB_PASSWORD = '1133456@Sumit'
+DB_HOST = os.getenv('DB_HOST', 'localhost')
+DB_USER = os.getenv('DB_USER', 'root')
+DB_PASSWORD = os.getenv('DB_PASSWORD', '')
 
 print("Setting up SRMAP Event Management System Database...")
 
@@ -11,7 +14,8 @@ try:
     connection = pymysql.connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD)
     cursor = connection.cursor()
     
-    with open('database.sql', 'r') as file:
+    sql_path = Path(__file__).resolve().with_name('database.sql')
+    with sql_path.open('r', encoding='utf-8') as file:
         sql_commands = file.read().split(';')
         
     for command in sql_commands:
@@ -37,10 +41,27 @@ try:
     # Dummy Event
     db_cursor.execute("SELECT * FROM events")
     if not db_cursor.fetchone():
-        db_cursor.execute("""
-            INSERT INTO events (event_name, description, event_date, event_time, venue, organizer, capacity) 
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-        """, ('Annual Tech Fest', 'Biggest tech festival of the year!', '2026-05-10', '10:00:00', 'Main Auditorium', 'Tech Club', 500))
+        db_cursor.execute("SHOW COLUMNS FROM events LIKE 'venue_id'")
+        normalized_schema = db_cursor.fetchone() is not None
+
+        if normalized_schema:
+            db_cursor.execute("INSERT INTO venues (venue_name, location, capacity) VALUES (%s, %s, %s)",
+                              ('Main Auditorium', 'SRMAP Campus', 500))
+            venue_id = db_cursor.lastrowid
+
+            db_cursor.execute("INSERT INTO organizers (organizer_name, contact, email) VALUES (%s, %s, %s)",
+                              ('Tech Club', '9999999999', 'techclub@srmap.edu.in'))
+            organizer_id = db_cursor.lastrowid
+
+            db_cursor.execute("""
+                INSERT INTO events (event_name, description, event_date, event_time, venue_id, organizer_id, capacity) 
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """, ('Annual Tech Fest', 'Biggest tech festival of the year!', '2026-05-10', '10:00:00', venue_id, organizer_id, 500))
+        else:
+            db_cursor.execute("""
+                INSERT INTO events (event_name, description, event_date, event_time, venue, organizer, capacity) 
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """, ('Annual Tech Fest', 'Biggest tech festival of the year!', '2026-05-10', '10:00:00', 'Main Auditorium', 'Tech Club', 500))
         
     db_conn.commit()
     print("Database setup complete! Fake user and admin injected.")

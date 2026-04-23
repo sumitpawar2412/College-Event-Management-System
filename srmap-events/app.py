@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash
+import os
 import pymysql
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
@@ -7,10 +8,10 @@ app = Flask(__name__)
 app.secret_key = 'super_secret_key_srmap'
 
 # Database Configuration
-DB_HOST = 'localhost'
-DB_USER = 'root'
-DB_PASSWORD = '1133456@Sumit'
-DB_NAME = 'srmap_events'
+DB_HOST = os.getenv('DB_HOST', 'localhost')
+DB_USER = os.getenv('DB_USER', 'root')
+DB_PASSWORD = os.getenv('DB_PASSWORD', '')
+DB_NAME = os.getenv('DB_NAME', 'srmap_events')
 
 def get_db_connection():
     return pymysql.connect(
@@ -20,6 +21,131 @@ def get_db_connection():
         database=DB_NAME,
         cursorclass=pymysql.cursors.DictCursor
     )
+
+
+def table_exists(cursor, table_name):
+    cursor.execute("SHOW TABLES LIKE %s", (table_name,))
+    return cursor.fetchone() is not None
+
+
+def column_exists(cursor, table_name, column_name):
+    if not table_exists(cursor, table_name):
+        return False
+    cursor.execute(f"SHOW COLUMNS FROM `{table_name}` LIKE %s", (column_name,))
+    return cursor.fetchone() is not None
+
+
+def uses_normalized_event_schema(cursor):
+    return (
+        table_exists(cursor, 'venues')
+        and table_exists(cursor, 'organizers')
+        and column_exists(cursor, 'events', 'venue_id')
+        and column_exists(cursor, 'events', 'organizer_id')
+    )
+
+
+def uses_split_login_activity_schema(cursor):
+    return column_exists(cursor, 'login_activity', 'student_id') and column_exists(cursor, 'login_activity', 'admin_id')
+
+
+def get_or_create_lookup_id(cursor, table_name, id_column, name_column, value):
+    cursor.execute(
+        f"SELECT {id_column} FROM {table_name} WHERE {name_column} = %s",
+        (value,)
+    )
+    existing_row = cursor.fetchone()
+    if existing_row:
+        return existing_row[id_column]
+
+    cursor.execute(
+        f"INSERT INTO {table_name} ({name_column}) VALUES (%s)",
+        (value,)
+    )
+    return cursor.lastrowid
+
+
+def fetch_event_rows(cursor, search_text=None, limit=None):
+    normalized_schema = uses_normalized_event_schema(cursor)
+
+    if normalized_schema:
+        query = """
+            SELECT e.event_id, e.event_name, e.description, e.event_date, e.event_time,
+                   COALESCE(v.venue_name, '') AS venue,
+                   COALESCE(o.organizer_name, '') AS organizer,
+                   e.capacity
+            FROM events e
+            LEFT JOIN venues v ON e.venue_id = v.venue_id
+            LEFT JOIN organizers o ON e.organizer_id = o.organizer_id
+        """
+    else:
+        query = """
+            SELECT event_id, event_name, description, event_date, event_time,
+                   venue, organizer, capacity
+            FROM events
+        """
+
+    parameters = []
+    if search_text:
+        if normalized_schema:
+            query += """
+                WHERE e.event_name LIKE %s
+                   OR e.description LIKE %s
+                   OR v.venue_name LIKE %s
+                   OR o.organizer_name LIKE %s
+            """
+        else:
+            query += """
+                WHERE event_name LIKE %s
+                   OR description LIKE %s
+                   OR venue LIKE %s
+                   OR organizer LIKE %s
+            """
+        search_value = f'%{search_text}%'
+        parameters.extend([search_value, search_value, search_value, search_value])
+
+    query += " ORDER BY event_date ASC"
+    if limit is not None:
+        query += " LIMIT %s"
+        parameters.append(limit)
+
+    cursor.execute(query, tuple(parameters))
+    return cursor.fetchall()
+
+
+def fetch_registered_events(cursor, student_id):
+    if uses_normalized_event_schema(cursor):
+        cursor.execute("""
+            SELECT e.event_id, e.event_name, e.description, e.event_date, e.event_time,
+                   COALESCE(v.venue_name, '') AS venue,
+                   COALESCE(o.organizer_name, '') AS organizer,
+                   e.capacity, r.reg_date
+            FROM events e
+            JOIN registrations r ON e.event_id = r.event_id
+            LEFT JOIN venues v ON e.venue_id = v.venue_id
+            LEFT JOIN organizers o ON e.organizer_id = o.organizer_id
+            WHERE r.student_id = %s
+            ORDER BY e.event_date ASC
+        """, (student_id,))
+    else:
+        cursor.execute("""
+            SELECT e.*, r.reg_date
+            FROM events e
+            JOIN registrations r ON e.event_id = r.event_id
+            WHERE r.student_id = %s
+            ORDER BY e.event_date ASC
+        """, (student_id,))
+
+    return cursor.fetchall()
+
+
+def record_login_activity(cursor, user_id, role):
+    if uses_split_login_activity_schema(cursor):
+        if role == 'admin':
+            cursor.execute("INSERT INTO login_activity (admin_id) VALUES (%s)", (user_id,))
+        else:
+            cursor.execute("INSERT INTO login_activity (student_id) VALUES (%s)", (user_id,))
+    else:
+        cursor.execute("INSERT INTO login_activity (user_id, role) VALUES (%s, %s)", (user_id, role))
 
 # Decorators for auth
 def login_required(f):
@@ -46,8 +172,7 @@ def index():
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM events ORDER BY event_date ASC LIMIT 3")
-        upcoming_events = cursor.fetchall()
+        upcoming_events = fetch_event_rows(cursor, limit=3)
         conn.close()
         return render_template('index.html', events=upcoming_events)
     except Exception as e:
@@ -70,7 +195,7 @@ def login():
             session['admin_id'] = admin['admin_id']
             session['username'] = admin['username']
             session['role'] = 'admin'
-            cursor.execute("INSERT INTO login_activity (user_id, role) VALUES (%s, %s)", (admin['admin_id'], 'admin'))
+            record_login_activity(cursor, admin['admin_id'], 'admin')
             conn.commit()
             flash("Logged in successfully as Admin.", "success")
             conn.close()
@@ -83,7 +208,7 @@ def login():
             session['user_id'] = student['student_id']
             session['name'] = student['name']
             session['role'] = 'student'
-            cursor.execute("INSERT INTO login_activity (user_id, role) VALUES (%s, %s)", (student['student_id'], 'student'))
+            record_login_activity(cursor, student['student_id'], 'student')
             conn.commit()
             flash("Logged in successfully.", "success")
             conn.close()
@@ -141,11 +266,7 @@ def events():
     search = request.args.get('search', '')
     conn = get_db_connection()
     cursor = conn.cursor()
-    if search:
-        cursor.execute("SELECT * FROM events WHERE event_name LIKE %s OR description LIKE %s", (f'%{search}%', f'%{search}%'))
-    else:
-        cursor.execute("SELECT * FROM events ORDER BY event_date ASC")
-    all_events = cursor.fetchall()
+    all_events = fetch_event_rows(cursor, search_text=search)
     conn.close()
     return render_template('events.html', events=all_events, search=search)
 
@@ -206,14 +327,7 @@ def dashboard():
     student = cursor.fetchone()
     
     # Get registered events
-    cursor.execute("""
-        SELECT e.*, r.reg_date 
-        FROM events e 
-        JOIN registrations r ON e.event_id = r.event_id 
-        WHERE r.student_id = %s
-        ORDER BY e.event_date ASC
-    """, (user_id,))
-    registered_events = cursor.fetchall()
+    registered_events = fetch_registered_events(cursor, user_id)
     
     conn.close()
     return render_template('dashboard.html', student=student, events=registered_events)
@@ -231,8 +345,7 @@ def admin_dashboard():
     cursor.execute("SELECT COUNT(*) as ecount FROM events")
     events_count = cursor.fetchone()['ecount']
     
-    cursor.execute("SELECT * FROM events ORDER BY event_date ASC")
-    all_events = cursor.fetchall()
+    all_events = fetch_event_rows(cursor)
     
     # Enhance events with registration counts
     for event in all_events:
@@ -261,10 +374,18 @@ def add_event():
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO events (event_name, description, event_date, event_time, venue, organizer, capacity) 
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-        """, (name, desc, date, time, venue, organizer, capacity))
+        if uses_normalized_event_schema(cursor):
+            venue_id = get_or_create_lookup_id(cursor, 'venues', 'venue_id', 'venue_name', venue)
+            organizer_id = get_or_create_lookup_id(cursor, 'organizers', 'organizer_id', 'organizer_name', organizer)
+            cursor.execute("""
+                INSERT INTO events (event_name, description, event_date, event_time, venue_id, organizer_id, capacity) 
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """, (name, desc, date, time, venue_id, organizer_id, capacity))
+        else:
+            cursor.execute("""
+                INSERT INTO events (event_name, description, event_date, event_time, venue, organizer, capacity) 
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """, (name, desc, date, time, venue, organizer, capacity))
         conn.commit()
         flash("Event added successfully.", "success")
     except Exception as e:
@@ -289,5 +410,49 @@ def delete_event(event_id):
         conn.close()
     return redirect(url_for('admin_dashboard'))
 
+
+@app.route('/admin/add', methods=['POST'])
+@admin_required
+def add_admin():
+    username = request.form.get('username', '').strip()
+    password = request.form.get('password', '')
+    confirm_password = request.form.get('confirm_password', '')
+
+    if not username:
+        flash("Admin username is required.", "danger")
+        return redirect(url_for('admin_dashboard'))
+
+    if len(password) < 6:
+        flash("Password must be at least 6 characters long.", "danger")
+        return redirect(url_for('admin_dashboard'))
+
+    if password != confirm_password:
+        flash("Passwords do not match.", "danger")
+        return redirect(url_for('admin_dashboard'))
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT admin_id FROM admins WHERE username = %s", (username,))
+        if cursor.fetchone():
+            flash("Username already exists. Please choose another one.", "warning")
+            return redirect(url_for('admin_dashboard'))
+
+        hashed_password = generate_password_hash(password)
+        cursor.execute(
+            "INSERT INTO admins (username, password) VALUES (%s, %s)",
+            (username, hashed_password)
+        )
+        conn.commit()
+        flash(f"Admin '{username}' added successfully.", "success")
+    except Exception as e:
+        flash(f"Error adding admin: {e}", "danger")
+    finally:
+        conn.close()
+
+    return redirect(url_for('admin_dashboard'))
+
 if __name__ == '__main__':
     app.run(debug=True)
+ 

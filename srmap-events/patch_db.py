@@ -1,9 +1,10 @@
+import os
 import pymysql
 from werkzeug.security import generate_password_hash
 
-DB_HOST = 'localhost'
-DB_USER = 'root'
-DB_PASSWORD = '1133456@Sumit'
+DB_HOST = os.getenv('DB_HOST', 'localhost')
+DB_USER = os.getenv('DB_USER', 'root')
+DB_PASSWORD = os.getenv('DB_PASSWORD', '')
 
 try:
     conn = pymysql.connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database='srmap_events')
@@ -13,8 +14,8 @@ try:
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS login_activity (
             login_id INT AUTO_INCREMENT PRIMARY KEY,
-            user_id INT,
-            role VARCHAR(20),
+            student_id INT NULL,
+            admin_id INT NULL,
             login_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     """)
